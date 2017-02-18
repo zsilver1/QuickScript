@@ -4,12 +4,18 @@ from flask import request, jsonify
 from flask_cors import CORS
 from twilio.rest import TwilioRestClient
 from flask_apscheduler import APScheduler
-
+import datetime
+# import dateparser
 
 app = Flask(__name__)
 CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
 db = SQLAlchemy(app)
+
+SCHEDULER_API_ENABLED = True
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.start()
 
 
 ###############################################################################
@@ -74,28 +80,28 @@ class Prescription(db.Model):
     doctor = db.relationship('Doctor',
                              backref=db.backref('prescriptions'))
     drugName = db.Column(db.String(256), index=True)
-    drugManufacturer = db.Column(db.String(256), index=True)
     dosage = db.Column(db.Integer, index=True)
     # take every x days
     dosagePeriod = db.Column(db.Integer, index=True)
     # number of doses per period
     dosageNumber = db.Column(db.Integer, index=True)
-    numDoses = db.Column(db.Integer, index=True)
+    totalNumDoses = db.Column(db.Integer, index=True)
     expirationDate = db.Column(db.DateTime, index=True)
     datePrescribed = db.Column(db.DateTime, index=True)
     timeOfDay = db.Column(db.String(256), index=True)
+    pharmacyFilled = db.Column(db.Boolean, index=True)
 
     def to_dict(self):
         d = {
             'drugName': self.drugName,
-            'drugManufacturer': self.drugManufacturer,
             'dosage': self.dosage,
             'dosagePeriod': self.dosagePeriod,
             'dosageNumber': self.dosageNumber,
-            'numDoses': self.numDoses,
+            'totalNumDoses': self.totalNumDoses,
             'expirationDate': self.dosage,
             'datePrescribed': self.datePrescribed,
             'timeOfDay': self.timeOfDay,
+            'pharmacyFilled': self.pharmacyFilled
         }
         return d
 
@@ -118,7 +124,7 @@ def createDoc(email, password, name="", address="",
     doc.password = password
     doc.name = name
     doc.address = address
-    doc.dob = dob
+    doc.dob = datetime.strptime(dob, "%a, %d %b %Y %H:%M:%S %Z")
     doc.practiceName = practiceName
     doc.specialty = specialty
     db.session.add(doc)
@@ -133,7 +139,7 @@ def createPatient(doctor, name, phoneNumber, email="", address="",
     p.phoneNumber = phoneNumber
     p.email = email
     p.address = address
-    p.dob = dob
+    p.dob = datetime.strptime(dob, "%a, %d %b %Y %H:%M:%S %Z")
     p.ssn = ssn
     p.doctor = doctor
     db.session.add(p)
@@ -141,22 +147,25 @@ def createPatient(doctor, name, phoneNumber, email="", address="",
     return p
 
 
-def createPrescription(patient, doctor, drugName='', drugManufacturer='',
+def createPrescription(patient, doctor, drugName='',
                        dosage=None, dosagePeriod=None, dosageNumber=None,
-                       numDoses=None, expirationDate=None, datePrescribed=None,
-                       timeOfDay=''):
+                       totalNumDoses=None, expirationDate=None,
+                       datePrescribed=None, timeOfDay='',
+                       pharmacyFilled=False):
     p = Prescription()
     p.patient = patient
     p.doctor = doctor
     p.drugName = drugName
-    p.drugManufacturer = drugManufacturer
     p.dosage = dosage
     p.dosagePeriod = dosagePeriod
     p.dosageNumber = dosageNumber
-    p.numDoses = numDoses
-    p.expirationDate = expirationDate
-    p.datePrescribed = datePrescribed
+    p.totalNumDoses = totalNumDoses
+    p.expirationDate = datetime.strptime(expirationDate,
+                                         "%a, %d %b %Y %H:%M:%S %Z")
+    p.datePrescribed = datetime.strptime(datePrescribed,
+                                         "%a, %d %b %Y %H:%M:%S %Z")
     p.timeOfDay = timeOfDay
+    p.pharmacyFilled = pharmacyFilled
     db.session.add(p)
     db.session.commit()
     return p
@@ -202,24 +211,23 @@ def loginDoc():
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
-        createDoc(request.json['patient'], request.json['doctor'],
-                  request.json['drugName'],
-                  request.json['drugManufacturer'],
-                  request.json['dosage'], request.json['dosagePeriod'],
-                  request.json['dosageNumber'], request.json['numDoses'],
-                  request.json['expirationdate'],
-                  request.json['datePrescribed'],
-                  request.json['timeOfDay'])
+        createPrescription(request.json['patient'], request.json['doctor'],
+                           request.json['drugName'],
+                           request.json['dosage'], request.json['dosagePeriod'],
+                           request.json['dosageNumber'], request.json['totalNumDoses'],
+                           request.json['expirationdate'],
+                           request.json['datePrescribed'],
+                           request.json['timeOfDay'])
         return "Prescription added"
 
 
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
     if request.method == 'POST':
-        createDoc(request.json['doctor'], request.json['name'],
-                  request.json['phoneNumber'], request.json['email'],
-                  request.json['address'], request.json['dob'],
-                  request.json['ssn'])
+        createPatient(request.json['doctor'], request.json['name'],
+                      request.json['phoneNumber'], request.json['email'],
+                      request.json['address'], request.json['dob'],
+                      request.json['ssn'])
         return "Patient added"
 
 
@@ -248,7 +256,7 @@ class SchedulerConfig(object):
     JOBS = [
         {
             'id': 'sendText',
-            'func': 'jobs:sendText',
+            'func': 'jobs:checkPrescriptions',
             'args': (),
             'trigger': 'interval',
             'seconds': 60
@@ -256,5 +264,47 @@ class SchedulerConfig(object):
     ]
 
 
-def sendText():
-    pass
+def checkPrescriptions():
+    MORNING = 8
+    NOON = 12
+    EVENING = 17
+
+    curDate = datetime.date.today()
+    curTime = datetime.datetime.now().hour
+    for patient in Patient.query.all():
+        phoneNumber = str(patient.phoneNumber)
+        drugList = []
+        for p in patient.prescriptions:
+            if p.totalNumDoses > 0 and (days_between(curDate, p.datePrescribed)
+                                        % p.dosagePeriod == 0):
+                if "Morning" in p.timeOfDay and curTime == MORNING:
+                    drugList.append(p)
+                    p.totalNumDoses = p.totalNumDoses - p.dosageNumber
+                    db.session.add(p)
+                    db.session.commit()
+                elif "Noon" in p.timeOfDay and curTime == NOON:
+                    drugList.append(p)
+                    p.totalNumDoses = p.totalNumDoses - p.dosageNumber
+                    db.session.add(p)
+                    db.session.commit()
+                elif "Evening" in p.timeOfDay and curTime == EVENING:
+                    drugList.append(p)
+                    p.totalNumDoses = p.totalNumDoses - p.dosageNumber
+                    db.session.add(p)
+                    db.session.commit()
+        sendtext(phoneNumber, drugList)
+
+
+def sendtext(phoneNumber, drugList):
+    text = "Please take these drugs today: \n"
+    for drug in drugList:
+        text += "{} doses of {}\n".format(drug.dosageNumber, drug.drugName)
+    client.sms.messages.create(to=str(phoneNumber),
+                               from_="18562194208",
+                               body=text)
+
+
+def days_between(d1, d2):
+    d1 = datetime.strptime(d1, "%Y-%m-%d")
+    d2 = datetime.strptime(d2, "%Y-%m-%d")
+    return abs((d2 - d1).days)
