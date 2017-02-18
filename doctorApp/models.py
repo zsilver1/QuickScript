@@ -1,13 +1,6 @@
 from django.db import models
 
 
-class Patient(models.Model):
-    address = models.CharField(max_length=256)
-    name = models.CharField(max_length=256)
-    ssn = models.IntegerField(default=0)
-    dob = models.DateTimeField()
-
-
 class Doctor(models.Model):
     name = models.CharField(max_length=256)
     address = models.CharField(max_length=256)
@@ -16,6 +9,15 @@ class Doctor(models.Model):
     specialty = models.CharField(max_length=256)
     email = models.CharField(max_length=256)
     password = models.CharField(max_length=256)
+    patients = models.ManyToManyField(Patient)
+
+
+class Patient(models.Model):
+    address = models.CharField(max_length=256)
+    name = models.CharField(max_length=256)
+    ssn = models.IntegerField(default=0)
+    dob = models.DateTimeField()
+    doctor = models.ManyToManyField(Doctor)
 
 
 class Drug(models.Model):
@@ -23,8 +25,9 @@ class Drug(models.Model):
     manufacturer = models.CharField(max_length=256)
 
 
-class PatientDrug(models.Model):
+class Perscription(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
+    doctor = models.ForeignKey(Doctor,on_delete=models.CASCADE)
     drug = models.ForeignKey(Drug, on_delete=models.CASCADE)
     dosage = models.IntegerField(default=0)
 
@@ -37,9 +40,3 @@ class PatientDrug(models.Model):
 
     expirationDate = models.DateTimeField()
     datePerscribed = models.DateTimeField()
-
-
-class DoctorPatient(models.Model):
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
-    doctor = patient = models.ForeignKey(Doctor, on_delete=models.CASCADE)
-    patientNotes = models.CharField(max_length=2048)
