@@ -169,8 +169,8 @@ createPrescription(p, d)
 def login():
     # REMOVE ME
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
+        email = request.json['email']
+        password = request.json['password']
         # HANDLE ERRORS
         doctor = Doctor.query.filter_by(email=email, password=password).first()
 
