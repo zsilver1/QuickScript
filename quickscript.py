@@ -171,8 +171,10 @@ def login():
     if request.method == 'POST':
         email = request.json['email']
         password = request.json['password']
-        # HANDLE ERRORS
+
         doctor = Doctor.query.filter_by(email=email, password=password).first()
+        if type(doctor) != Doctor:
+            return "Invalid username or password"
 
         plist = []
         for p in doctor.patients:
@@ -183,17 +185,32 @@ def login():
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
-        p = request.get_json()
-    return str(p)
+        createDoc(request.json['patient'], request.json['doctor'],
+                  request.json['drugName'],
+                  request.json['drugManufacturer'],
+                  request.json['dosage'], request.json['dosagePeriod'],
+                  request.json['dosageNumber'], request.json['numDays'],
+                  request.json['expirationdate'],
+                  request.json['datePrescribed'],
+                  request.json['timeOfDay'])
+        return "Prescription added"
 
 
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
-    pass
+    if request.method == 'POST':
+        createDoc(request.json['doctor'], request.json['name'],
+                  request.json['phoneNumber'], request.json['email'],
+                  request.json['address'], request.json['dob'],
+                  request.json['ssn'])
+        return "Patient added"
 
 
 @app.route('/addDoctorView', methods=['POST'])
 def addDoctor():
     if request.method == 'POST':
-        createDoc(request.form['email'], request.form['password'])
-    return "yes"
+        createDoc(request.json['email'], request.json['password'],
+                  request.json['name'], request.json['address'],
+                  request.json['dob'], request.json['practiceName'],
+                  request.json['specialty'])
+        return "Doctor added"
