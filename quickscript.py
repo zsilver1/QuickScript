@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask import request, jsonify
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS
 
 
 app = Flask(__name__)
@@ -183,7 +183,9 @@ def login():
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
-        
+        p = request.get_json()
+    return str(p)
+
 
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
@@ -191,3 +193,7 @@ def addPatient():
 
 
 @app.route('/addDoctorView', methods=['POST'])
+def addDoctor():
+    if request.method == 'POST':
+        createDoc(request.form['email'], request.form['password'])
+    return "yes"
