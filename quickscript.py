@@ -2,6 +2,8 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask import request, jsonify
 from flask_cors import CORS
+from twilio.rest import TwilioRestClient
+from flask_apscheduler import APScheduler
 
 
 app = Flask(__name__)
@@ -78,7 +80,7 @@ class Prescription(db.Model):
     dosagePeriod = db.Column(db.Integer, index=True)
     # number of doses per period
     dosageNumber = db.Column(db.Integer, index=True)
-    numDays = db.Column(db.Integer, index=True)
+    numDoses = db.Column(db.Integer, index=True)
     expirationDate = db.Column(db.DateTime, index=True)
     datePrescribed = db.Column(db.DateTime, index=True)
     timeOfDay = db.Column(db.String(256), index=True)
@@ -90,10 +92,10 @@ class Prescription(db.Model):
             'dosage': self.dosage,
             'dosagePeriod': self.dosagePeriod,
             'dosageNumber': self.dosageNumber,
-            'numDays': self.numDays,
+            'numDoses': self.numDoses,
             'expirationDate': self.dosage,
             'datePrescribed': self.datePrescribed,
-            'timeOfDay': self.dosageNumber,
+            'timeOfDay': self.timeOfDay,
         }
         return d
 
@@ -104,7 +106,7 @@ db.drop_all()
 
 db.create_all()
 
-##############################################################################
+#############################################################################
 # VIEW
 #############################################################################
 
@@ -141,7 +143,7 @@ def createPatient(doctor, name, phoneNumber, email="", address="",
 
 def createPrescription(patient, doctor, drugName='', drugManufacturer='',
                        dosage=None, dosagePeriod=None, dosageNumber=None,
-                       numDays=None, expirationDate=None, datePrescribed=None,
+                       numDoses=None, expirationDate=None, datePrescribed=None,
                        timeOfDay=''):
     p = Prescription()
     p.patient = patient
@@ -151,7 +153,7 @@ def createPrescription(patient, doctor, drugName='', drugManufacturer='',
     p.dosage = dosage
     p.dosagePeriod = dosagePeriod
     p.dosageNumber = dosageNumber
-    p.numDays = numDays
+    p.numDoses = numDoses
     p.expirationDate = expirationDate
     p.datePrescribed = datePrescribed
     p.timeOfDay = timeOfDay
@@ -160,14 +162,13 @@ def createPrescription(patient, doctor, drugName='', drugManufacturer='',
     return p
 
 
-d = createDoc("hello@email.com", "password")
+d = createDoc("a@b.com", "ab")
 p = createPatient(d, "yes", 234)
-createPrescription(p, d)
+createPrescription(p, d, drugName="Xanax", dosage=1, dosagePeriod=2, dosageNumber=7)
 
 
-@app.route('/login', methods=['POST'])
-def login():
-    # REMOVE ME
+@app.route('/loginDoctor', methods=['POST'])
+def loginDoc():
     if request.method == 'POST':
         email = request.json['email']
         password = request.json['password']
@@ -182,6 +183,22 @@ def login():
         return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
 
 
+# @app.route('/loginPharmacy', methods=['POST'])
+# def loginPharm():
+#     if request.method == 'POST':
+#         email = request.json['email']
+#         password = request.json['password']
+
+#         doctor = Doctor.query.filter_by(email=email, password=password).first()
+#         if type(doctor) != Doctor:
+#             return "Invalid username or password"
+
+#         plist = []
+#         for p in doctor.patients:
+#             plist.append(p.to_dict())
+#         return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
+
+
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
@@ -189,7 +206,7 @@ def addPrescription():
                   request.json['drugName'],
                   request.json['drugManufacturer'],
                   request.json['dosage'], request.json['dosagePeriod'],
-                  request.json['dosageNumber'], request.json['numDays'],
+                  request.json['dosageNumber'], request.json['numDoses'],
                   request.json['expirationdate'],
                   request.json['datePrescribed'],
                   request.json['timeOfDay'])
@@ -214,3 +231,30 @@ def addDoctor():
                   request.json['dob'], request.json['practiceName'],
                   request.json['specialty'])
         return "Doctor added"
+
+
+#############################################################################
+# TWILLIO
+#############################################################################
+
+
+ACCOUNT_SID = "AC196bde1976f17bec537a18d74ddfc9dc"
+AUTH_TOKEN = "497c27040c7ef630efe7fb8757ff1c8a"
+
+client = TwilioRestClient(ACCOUNT_SID, AUTH_TOKEN)
+
+
+class SchedulerConfig(object):
+    JOBS = [
+        {
+            'id': 'sendText',
+            'func': 'jobs:sendText',
+            'args': (),
+            'trigger': 'interval',
+            'seconds': 60
+        }
+    ]
+
+
+def sendText():
+    pass
