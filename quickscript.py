@@ -1,9 +1,11 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask import request, jsonify
+from flask_cors import CORS, cross_origin
 
 
 app = Flask(__name__)
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
 db = SQLAlchemy(app)
 
@@ -56,19 +58,19 @@ class Patient(db.Model):
             'ssn': self.ssn,
             'email': self.email,
             'phoneNumber': self.phoneNumber,
-            'perscriptions': [p.to_dict() for p in self.perscriptions]
+            'prescriptions': [p.to_dict() for p in self.prescriptions]
         }
         return d
 
 
-class Perscription(db.Model):
+class Prescription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
     patient = db.relationship('Patient',
-                              backref=db.backref('perscriptions'))
+                              backref=db.backref('prescriptions'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'))
     doctor = db.relationship('Doctor',
-                             backref=db.backref('perscriptions'))
+                             backref=db.backref('prescriptions'))
     drugName = db.Column(db.String(256), index=True)
     drugManufacturer = db.Column(db.String(256), index=True)
     dosage = db.Column(db.Integer, index=True)
@@ -78,7 +80,7 @@ class Perscription(db.Model):
     dosageNumber = db.Column(db.Integer, index=True)
     numDays = db.Column(db.Integer, index=True)
     expirationDate = db.Column(db.DateTime, index=True)
-    datePerscribed = db.Column(db.DateTime, index=True)
+    datePrescribed = db.Column(db.DateTime, index=True)
     timeOfDay = db.Column(db.String(256), index=True)
 
     def to_dict(self):
@@ -90,7 +92,7 @@ class Perscription(db.Model):
             'dosageNumber': self.dosageNumber,
             'numDays': self.numDays,
             'expirationDate': self.dosage,
-            'datePerscribed': self.dosagePeriod,
+            'datePrescribed': self.datePrescribed,
             'timeOfDay': self.dosageNumber,
         }
         return d
@@ -107,8 +109,8 @@ db.create_all()
 #############################################################################
 
 
-def addDoc(email, password, name="", address="",
-           dob=None, practiceName="", specialty=""):
+def createDoc(email, password, name="", address="",
+              dob=None, practiceName="", specialty=""):
     doc = Doctor()
     doc.email = email
     doc.password = password
@@ -122,8 +124,8 @@ def addDoc(email, password, name="", address="",
     return doc
 
 
-def addPatient(doctor, name, phoneNumber, email="", address="",
-               dob=None, ssn=None):
+def createPatient(doctor, name, phoneNumber, email="", address="",
+                  dob=None, ssn=None):
     p = Patient()
     p.name = name
     p.phoneNumber = phoneNumber
@@ -137,11 +139,11 @@ def addPatient(doctor, name, phoneNumber, email="", address="",
     return p
 
 
-def addPerscription(patient, doctor, drugName='', drugManufacturer='',
-                    dosage=None, dosagePeriod=None, dosageNumber=None,
-                    numDays=None, expirationDate=None, datePerscribed=None,
-                    timeOfDay=''):
-    p = Perscription()
+def createPrescription(patient, doctor, drugName='', drugManufacturer='',
+                       dosage=None, dosagePeriod=None, dosageNumber=None,
+                       numDays=None, expirationDate=None, datePrescribed=None,
+                       timeOfDay=''):
+    p = Prescription()
     p.patient = patient
     p.doctor = doctor
     p.drugName = drugName
@@ -151,19 +153,19 @@ def addPerscription(patient, doctor, drugName='', drugManufacturer='',
     p.dosageNumber = dosageNumber
     p.numDays = numDays
     p.expirationDate = expirationDate
-    p.datePerscribed = datePerscribed
+    p.datePrescribed = datePrescribed
     p.timeOfDay = timeOfDay
     db.session.add(p)
     db.session.commit()
     return p
 
 
-d = addDoc("hello@email.com", "password")
-p = addPatient(d, "yes", 234)
-addPerscription(p, d)
-# addDoc("hellothere@email.com", "password")
+d = createDoc("hello@email.com", "password")
+p = createPatient(d, "yes", 234)
+createPrescription(p, d)
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route('/login', methods=['POST'])
 def login():
     # REMOVE ME
     if request.method == 'POST':
@@ -176,3 +178,16 @@ def login():
         for p in doctor.patients:
             plist.append(p.to_dict())
         return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
+
+
+@app.route('/addPrescriptionView', methods=['POST'])
+def addPrescription():
+    if request.method == 'POST':
+        
+
+@app.route('/addPatientView', methods=['POST'])
+def addPatient():
+    pass
+
+
+@app.route('/addDoctorView', methods=['POST'])
