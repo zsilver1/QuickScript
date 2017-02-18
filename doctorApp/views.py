@@ -9,16 +9,19 @@ def index(request):
         data = json.loads(request.body)
         loginEmail = data["email"]
         loginPassword = data["password"]
-        doctorPatient = model.DoctorPatient.objects.get(
-            doctor.email=loginEmail, doctor.password=loginPassword)
+        docObject = model.Doctor.objects.get(email=loginEmail,
+                                             password=loginPassword)
 
-        doctor = doctorPatient.doctor
-        patient = doctorPatient.patient
-        notes = doctorPatient.notes
+        doctor = docObject.__dict__.pop("patients")
+        patients = []
 
-        doctorData = {}
-        patientData = {}
-        for item in doc.__dict__.items():
-            doctorData[item[0]] = item[1]
+        for p in docObject.patients.all():
+            perscriptionList = []
+            for q in p.perscriptions.all():
+                perscriptionList.append(q.__dict__)
+            p.perscriptions = perscriptionList
+            patients.append(p.__dict__)
 
-        for item in 
+        responseData = {"doctor": doctor, "patients":patients}
+        responseData = json.dumps(responseData)
+        

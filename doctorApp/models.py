@@ -18,6 +18,7 @@ class Patient(models.Model):
     ssn = models.IntegerField(default=0)
     dob = models.DateTimeField()
     doctor = models.ManyToManyField(Doctor)
+    perscriptions = models.ManyToManyField(Perscription)
 
 
 class Drug(models.Model):
