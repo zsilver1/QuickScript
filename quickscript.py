@@ -26,7 +26,11 @@ scheduler.init_app(app)
 scheduler.start()
 
 login_manager = LoginManager()
+login_manager.session_protection = None
+login_manager.login_view = "loginDoc"
 login_manager.init_app(app)
+
+LOGGED_IN_USER = None
 
 ###############################################################################
 # MODEL
@@ -62,6 +66,7 @@ class Doctor(db.Model):
 
     def to_dict(self):
         d = {
+            'id': self.id,
             'name': self.name,
             'address': self.address,
             'dob': self.dob,
@@ -92,6 +97,7 @@ class Patient(db.Model):
 
     def to_dict(self):
         d = {
+            'id': self.id,
             'name': self.name,
             'address': self.address,
             'dob': self.dob,
@@ -125,6 +131,8 @@ class Prescription(db.Model):
 
     def to_dict(self):
         d = {
+            'patient_id': self.patient_id,
+            'doctor_id': self.doctor_id,
             'drugName': self.drugName,
             'dosage': self.dosage,
             'dosagePeriod': self.dosagePeriod,
@@ -138,7 +146,7 @@ class Prescription(db.Model):
         return d
 
 
-# db.drop_all()
+db.drop_all()
 
 db.create_all()
 
@@ -162,7 +170,6 @@ def createDoc(email, password, dob, name="", address="",
     return doc
 
 
-@login_required
 def createPatient(doctor, name, phoneNumber, dob, email="", address="",
                   ssn=None):
     p = Patient()
@@ -178,7 +185,6 @@ def createPatient(doctor, name, phoneNumber, dob, email="", address="",
     return p
 
 
-@login_required
 def createPrescription(patient, doctor, datePrescribed,
                        expirationDate,
                        dosage=None, dosagePeriod=None, dosageNumber=None,
@@ -229,7 +235,7 @@ def loginDoc():
             return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
 
 
-@app.route('/loginDoctor', methods=['POST'])
+@app.route('/logout', methods=['POST'])
 @login_required
 def logout():
     """Logout the current user."""
@@ -255,11 +261,13 @@ def logout():
 #             plist.append(p.to_dict())
 #         return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
 
-
+@login_required
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
-        createPrescription(request.json['patient'], request.json['doctor'],
+        ## FIX ME
+        createPrescription(Patient.query.get(int(request.json['patient_id'])),
+                           Doctor.query.get(int(request.json['doctor_id'])),
                            request.json['drugName'],
                            request.json['dosage'],
                            request.json['dosagePeriod'],
@@ -271,24 +279,54 @@ def addPrescription():
         return "Prescription added"
 
 
+@login_required
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
-    print(request.json['ssn'])
     if request.method == 'POST':
-        createPatient(request.json['doctor'], request.json['name'],
-                      request.json['phoneNumber'], request.json['email'],
-                      request.json['address'], request.json['dob'],
+        createPatient(Doctor.query.get(int(request.json['id'])),
+                      request.json['name'],
+                      request.json['phoneNumber'],
+                      request.json['dob'],
+                      request.json['email'],
+                      request.json['address'],
                       request.json['ssn'])
         return "Patient added"
+
+
+@login_required
+@app.route('/getPatients', methods=["POST"])
+def getPatients():
+    if request.method == 'POST':
+        doc = Doctor.query.get(int(request.json['id']))
+        plist = []
+        for p in doc.patients:
+            plist.append(p.to_dict())
+        return jsonify({'patients': plist})
+
+
+@login_required
+@app.route('/getPrescriptions', methods=["POST"])
+def getPrescriptions():
+    if request.method == 'POST':
+        doc = Doctor.query.get(int(request.json['doctor_id']))
+        patient = Patient.query.get(int(request.json['patient_id']))
+        plist = []
+        for prescription in patient.prescriptions:
+            if prescription.doctor == doc:
+                plist.append(prescription.to_dict())
+        return jsonify({'prescriptions': plist})
 
 
 @app.route('/addDoctorView', methods=['POST'])
 def addDoctor():
     print(request.json['dob'])
     if request.method == 'POST':
-        createDoc(request.json['email'], request.json['password'],
-                  request.json['name'], request.json['address'],
-                  request.json['dob'], request.json['practiceName'],
+        createDoc(request.json['email'],
+                  request.json['password'],
+                  request.json['name'],
+                  request.json['address'],
+                  request.json['dob'],
+                  request.json['practiceName'],
                   request.json['specialty'])
         return "Doctor added"
 
