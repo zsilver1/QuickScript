@@ -5,9 +5,7 @@ from flask_cors import CORS
 from twilio.rest import TwilioRestClient
 from flask_apscheduler import APScheduler
 import datetime
-import dateparser
-from flask_login import LoginManager, login_required, login_user
-from flask_login import current_user, logout_user
+from flask_login import LoginManager, login_required, login_user, logout_user
 from flask.ext.session import Session
 
 app = Flask(__name__)
@@ -227,7 +225,7 @@ def loginDoc():
 @login_required
 def logout():
     """Logout the current user."""
-    d = Doctor.query.get(int(request.json['doctor_id']))
+    d = Doctor.query.get(int(request.json['id']))
     d.authenticated = False
     db.session.add(d)
     db.session.commit()
