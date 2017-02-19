@@ -41,7 +41,7 @@ class Doctor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), index=True)
     address = db.Column(db.String(256), index=True)
-    dob = db.Column(db.DateTime, index=True, unique=True)
+    dob = db.Column(db.DateTime, index=True)
     practiceName = db.Column(db.String(256), index=True)
     specialty = db.Column(db.String(256), index=True)
     email = db.Column(db.String(256), index=True, unique=True)
@@ -90,7 +90,7 @@ class Patient(db.Model):
     email = db.Column(db.String(256), index=True)
     address = db.Column(db.String(256), index=True)
     dob = db.Column(db.DateTime, index=True)
-    ssn = db.Column(db.String, index=True, unique=True)
+    ssn = db.Column(db.String, index=True)
     doctor = db.relationship('Doctor',
                              backref=db.backref('patients'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'))
@@ -153,14 +153,13 @@ db.create_all()
 #############################################################################
 
 
-def createDoc(email, password, dob, name="", address="",
+def createDoc(email, password, name="", address="",
               practiceName="", specialty=""):
     doc = Doctor()
     doc.email = email
     doc.password = password
     doc.name = name
     doc.address = address
-    doc.dob = dateparser.parse(dob)
     doc.practiceName = practiceName
     doc.specialty = specialty
     db.session.add(doc)
@@ -168,14 +167,13 @@ def createDoc(email, password, dob, name="", address="",
     return doc
 
 
-def createPatient(doctor, name, phoneNumber, dob, email="", address="",
+def createPatient(doctor, name, phoneNumber, email="", address="",
                   ssn=None):
     p = Patient()
     p.name = name
     p.phoneNumber = phoneNumber
     p.email = email
     p.address = address
-    p.dob = dateparser.parse(dob)
     p.ssn = ssn
     p.doctor = doctor
     db.session.add(p)
@@ -183,7 +181,7 @@ def createPatient(doctor, name, phoneNumber, dob, email="", address="",
     return p
 
 
-def createPrescription(patient, doctor, datePrescribed,
+def createPrescription(patient, doctor,
                        dosage=None, dosagePeriod=None, dosageNumber=None,
                        totalNumDoses=None,
                        timeOfDay='',
@@ -196,18 +194,12 @@ def createPrescription(patient, doctor, datePrescribed,
     p.dosagePeriod = dosagePeriod
     p.dosageNumber = dosageNumber
     p.totalNumDoses = totalNumDoses
-    p.datePrescribed = dateparser.parse(datePrescribed).date()
+    p.datePrescribed = datetime.date.today()
     p.timeOfDay = timeOfDay
     p.pharmacyFilled = pharmacyFilled
     db.session.add(p)
     db.session.commit()
     return p
-
-
-# d = createDoc("a@b.com", "ab", )
-# p = createPatient(d, "yes", 234)
-# createPrescription(p, d, drugName="Xanax", dosage=1, dosagePeriod=2,
-# dosageNumber=7)
 
 
 @app.route('/loginDoctor', methods=['POST'])
@@ -235,11 +227,12 @@ def loginDoc():
 @login_required
 def logout():
     """Logout the current user."""
-    user = current_user
-    user.authenticated = False
-    db.session.add(user)
+    d = Doctor.query.get(int(request.json['doctor_id']))
+    d.authenticated = False
+    db.session.add(d)
     db.session.commit()
     logout_user()
+    return "Logged out"
 
 
 @login_required
@@ -253,7 +246,6 @@ def addPrescription():
                            request.json['dosagePeriod'],
                            request.json['dosageNumber'],
                            request.json['totalNumDoses'],
-                           request.json['datePrescribed'],
                            request.json['timeOfDay'])
         return "Prescription added"
 
@@ -265,7 +257,6 @@ def addPatient():
         createPatient(Doctor.query.get(request.json['id']),
                       request.json['name'],
                       request.json['phoneNumber'],
-                      request.json['dob'],
                       request.json['email'],
                       request.json['address'],
                       request.json['ssn'])
@@ -301,11 +292,10 @@ def addDoctor():
     if request.method == 'POST':
         createDoc(request.json['email'],
                   request.json['password'],
-                  request.json['name'],
-                  request.json['address'],
-                  request.json['dob'],
-                  request.json['practiceName'],
-                  request.json['specialty'])
+                  name=request.json['name'],
+                  address=request.json['address'],
+                  practiceName=request.json['practiceName'],
+                  specialty=request.json['specialty'])
         return "Doctor added"
 
 
@@ -313,9 +303,10 @@ def addDoctor():
 @app.route('/sms', methods=['POST'])
 def textPatient():
     if request.method == 'POST':
-        patient = Patient.query.get(request.json)
+        patient = Patient.query.get(int(request.json['id']))
         number = str(patient.phoneNumber)
         sendtext(number, message="This is a test message")
+    return "success"
 
 
 #############################################################################
