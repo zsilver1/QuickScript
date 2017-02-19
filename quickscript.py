@@ -6,17 +6,26 @@ from twilio.rest import TwilioRestClient
 from flask_apscheduler import APScheduler
 import datetime
 import dateparser
+from flask_login import LoginManager, login_required, login_user
+from flask_login import current_user, logout_user
 
 app = Flask(__name__)
 CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
 db = SQLAlchemy(app)
 
+app.secret_key = 'not so secret key'
+app.config['SESSION_TYPE'] = 'filesystem'
+
+sess.init_app(app)
+
 SCHEDULER_API_ENABLED = True
 scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 ###############################################################################
 # MODEL
@@ -32,6 +41,23 @@ class Doctor(db.Model):
     specialty = db.Column(db.String(256), index=True)
     email = db.Column(db.String(256), index=True, unique=True)
     password = db.Column(db.String(256), index=True)
+    authenticated = db.Column(db.Boolean, default=False)
+
+    def is_active(self):
+        """True, as all users are active."""
+        return True
+
+    def get_id(self):
+        """Return the email address to satisfy Flask-Login's requirements."""
+        return self.email
+
+    def is_authenticated(self):
+        """Return True if the user is authenticated."""
+        return self.authenticated
+
+    def is_anonymous(self):
+        """False, as anonymous users aren't supported."""
+        return False
 
     def to_dict(self):
         d = {
@@ -44,6 +70,11 @@ class Doctor(db.Model):
             'password': self.password,
         }
         return d
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Doctor.query.get(user_id)
 
 
 class Patient(db.Model):
@@ -130,6 +161,7 @@ def createDoc(email, password, dob, name="", address="",
     return doc
 
 
+@login_required
 def createPatient(doctor, name, phoneNumber, dob, email="", address="",
                   ssn=None):
     p = Patient()
@@ -145,6 +177,7 @@ def createPatient(doctor, name, phoneNumber, dob, email="", address="",
     return p
 
 
+@login_required
 def createPrescription(patient, doctor, datePrescribed,
                        expirationDate,
                        dosage=None, dosagePeriod=None, dosageNumber=None,
@@ -183,11 +216,27 @@ def loginDoc():
         doctor = Doctor.query.filter_by(email=email, password=password).first()
         if type(doctor) != Doctor:
             return "Invalid username or password"
+        else:
+            doctor.authenticated = True
+            db.session.add(doctor)
+            db.session.commit()
+            login_user(doctor, remember=True)
 
-        plist = []
-        for p in doctor.patients:
-            plist.append(p.to_dict())
-        return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
+            plist = []
+            for p in doctor.patients:
+                plist.append(p.to_dict())
+            return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
+
+
+@app.route('/loginDoctor', methods=['POST'])
+@login_required
+def logout():
+    """Logout the current user."""
+    user = current_user
+    user.authenticated = False
+    db.session.add(user)
+    db.session.commit()
+    logout_user()
 
 
 # @app.route('/loginPharmacy', methods=['POST'])
