@@ -4,8 +4,8 @@ from flask import request, jsonify
 from flask_cors import CORS
 from twilio.rest import TwilioRestClient
 from flask_apscheduler import APScheduler
-from flask_login import LoginManager, login_required, login_user, logout_user
 from flask.ext.session import Session
+from flask_login import LoginManager, login_required, login_user, logout_user
 import datetime
 
 app = Flask(__name__)
