@@ -124,7 +124,6 @@ class Prescription(db.Model):
     # number of doses per period
     dosageNumber = db.Column(db.Integer, index=True)
     totalNumDoses = db.Column(db.Integer, index=True)
-    expirationDate = db.Column(db.DateTime, index=True)
     datePrescribed = db.Column(db.DateTime, index=True)
     timeOfDay = db.Column(db.String(256), index=True)
     pharmacyFilled = db.Column(db.Boolean, index=True)
@@ -138,7 +137,6 @@ class Prescription(db.Model):
             'dosagePeriod': self.dosagePeriod,
             'dosageNumber': self.dosageNumber,
             'totalNumDoses': self.totalNumDoses,
-            'expirationDate': self.dosage,
             'datePrescribed': self.datePrescribed,
             'timeOfDay': self.timeOfDay,
             'pharmacyFilled': self.pharmacyFilled
@@ -146,7 +144,7 @@ class Prescription(db.Model):
         return d
 
 
-db.drop_all()
+# db.drop_all()
 
 db.create_all()
 
@@ -186,7 +184,6 @@ def createPatient(doctor, name, phoneNumber, dob, email="", address="",
 
 
 def createPrescription(patient, doctor, datePrescribed,
-                       expirationDate,
                        dosage=None, dosagePeriod=None, dosageNumber=None,
                        totalNumDoses=None,
                        timeOfDay='',
@@ -199,7 +196,6 @@ def createPrescription(patient, doctor, datePrescribed,
     p.dosagePeriod = dosagePeriod
     p.dosageNumber = dosageNumber
     p.totalNumDoses = totalNumDoses
-    p.expirationDate = dateparser.parse(expirationDate).date()
     p.datePrescribed = dateparser.parse(datePrescribed).date()
     p.timeOfDay = timeOfDay
     p.pharmacyFilled = pharmacyFilled
@@ -246,26 +242,10 @@ def logout():
     logout_user()
 
 
-# @app.route('/loginPharmacy', methods=['POST'])
-# def loginPharm():
-#     if request.method == 'POST':
-#         email = request.json['email']
-#         password = request.json['password']
-
-#         doctor = Doctor.query.filter_by(email=email, password=password).first()
-#         if type(doctor) != Doctor:
-#             return "Invalid username or password"
-
-#         plist = []
-#         for p in doctor.patients:
-#             plist.append(p.to_dict())
-#         return jsonify({'doctor': doctor.to_dict(), 'patients': plist})
-
 @login_required
 @app.route('/addPrescriptionView', methods=['POST'])
 def addPrescription():
     if request.method == 'POST':
-        ## FIX ME
         createPrescription(Patient.query.get(int(request.json['patient_id'])),
                            Doctor.query.get(int(request.json['doctor_id'])),
                            request.json['drugName'],
@@ -273,7 +253,6 @@ def addPrescription():
                            request.json['dosagePeriod'],
                            request.json['dosageNumber'],
                            request.json['totalNumDoses'],
-                           request.json['expirationdate'],
                            request.json['datePrescribed'],
                            request.json['timeOfDay'])
         return "Prescription added"
@@ -283,7 +262,7 @@ def addPrescription():
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
     if request.method == 'POST':
-        createPatient(Doctor.query.get(int(request.json['id'])),
+        createPatient(Doctor.query.get(request.json['id']),
                       request.json['name'],
                       request.json['phoneNumber'],
                       request.json['dob'],
@@ -297,7 +276,7 @@ def addPatient():
 @app.route('/getPatients', methods=["POST"])
 def getPatients():
     if request.method == 'POST':
-        doc = Doctor.query.get(int(request.json['id']))
+        doc = Doctor.query.get(request.json)
         plist = []
         for p in doc.patients:
             plist.append(p.to_dict())
@@ -319,7 +298,6 @@ def getPrescriptions():
 
 @app.route('/addDoctorView', methods=['POST'])
 def addDoctor():
-    print(request.json['dob'])
     if request.method == 'POST':
         createDoc(request.json['email'],
                   request.json['password'],
@@ -329,6 +307,15 @@ def addDoctor():
                   request.json['practiceName'],
                   request.json['specialty'])
         return "Doctor added"
+
+
+@login_required
+@app.route('/sms', methods=['POST'])
+def textPatient():
+    if request.method == 'POST':
+        patient = Patient.query.get(request.json)
+        number = str(patient.phoneNumber)
+        sendtext(number, message="This is a test message")
 
 
 #############################################################################
@@ -385,13 +372,17 @@ def checkPrescriptions():
         sendtext(phoneNumber, drugList)
 
 
-def sendtext(phoneNumber, drugList):
-    text = "Please take these drugs today: \n"
-    for drug in drugList:
-        text += "{} doses of {}\n".format(drug.dosageNumber, drug.drugName)
+def sendtext(phoneNumber, message=None, drugList=None):
     client.sms.messages.create(to=str(phoneNumber),
                                from_="18562194208",
-                               body=text)
+                               body=message)
+    if drugList is not None:
+        text = "Please take these drugs today: \n"
+        for drug in drugList:
+            text += "{} doses of {}\n".format(drug.dosageNumber, drug.drugName)
+            client.sms.messages.create(to=str(phoneNumber),
+                                       from_="18562194208",
+                                       body=text)
 
 
 def days_between(d1, d2):
