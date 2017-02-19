@@ -53,7 +53,7 @@ class Patient(db.Model):
     email = db.Column(db.String(256), index=True)
     address = db.Column(db.String(256), index=True)
     dob = db.Column(db.DateTime, index=True)
-    ssn = db.Column(db.Integer, index=True, unique=True)
+    ssn = db.Column(db.String, index=True, unique=True)
     doctor = db.relationship('Doctor',
                              backref=db.backref('patients'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'))
@@ -106,7 +106,7 @@ class Prescription(db.Model):
         return d
 
 
-db.drop_all()
+# db.drop_all()
 
 db.create_all()
 
@@ -223,6 +223,7 @@ def addPrescription():
 
 @app.route('/addPatientView', methods=['POST'])
 def addPatient():
+    print(request.json['ssn'])
     if request.method == 'POST':
         createPatient(request.json['doctor'], request.json['name'],
                       request.json['phoneNumber'], request.json['email'],
@@ -268,7 +269,7 @@ class SchedulerConfig(object):
 def checkPrescriptions():
     MORNING = 8
     NOON = 12
-    EVENING = 19
+    EVENING = 17
 
     curDate = datetime.date.today()
     curTime = datetime.datetime.now().hour
