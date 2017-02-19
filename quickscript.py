@@ -8,15 +8,16 @@ import datetime
 import dateparser
 from flask_login import LoginManager, login_required, login_user
 from flask_login import current_user, logout_user
+from flask.ext.session import Session
 
 app = Flask(__name__)
 CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
 db = SQLAlchemy(app)
 
-app.secret_key = 'not so secret key'
+app.secret_key = 'A0Zr98j/37X R~XaH!jcN]LDX/,?ET'
 app.config['SESSION_TYPE'] = 'filesystem'
-
+sess = Session()
 sess.init_app(app)
 
 SCHEDULER_API_ENABLED = True
